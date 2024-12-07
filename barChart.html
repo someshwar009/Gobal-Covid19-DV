@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COVID-19 data with Bar Chart</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #212325;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            position: relative;
+        }
+
+        .container {
+            text-align: center;
+            background-color: #e5e6e7;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            width: 90%;
+            max-width: 1200px;
+            min-height: 100vh;
+            padding-bottom: 80px; /* Space for play button */
+        }
+
+        .chart-container {
+            width: 800px;
+            height: 600px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.85);
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            z-index: 10;
+        }
+
+        #slider-container {
+            margin: 20px 0;
+        }
+
+        #playButton {
+            position: fixed;
+            bottom: 30px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        #playButton:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .backButton {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .backButton:hover {
+            background-color: #218838;
+        }
+
+        .legend {
+            font-size: 12px;
+            text-align: left;
+        }
+
+        .legend rect {
+            stroke-width: 0.5;
+            stroke: #ccc;
+        }
+
+        .difference {
+            font-weight: bold;
+            color: #ff4500;
+        }
+
+        .country-name {
+            font-size: 14px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>COVID-19 Dashboard - Bar Chart</h1>
+        <div id="visualization" class="chart-container"></div>
+        <button class="backButton" onclick="window.location.href='/index.html';">Back to Dashboard</button>
+    </div>
+
+    <button id="playButton">Play</button>
+
+    <script>
+        // Load CSV data for the bar chart
+        d3.csv("/data/who_covid_data_with_coordinates.csv").then(data => {
+            // Parse dates and convert numeric values
+            data.forEach(d => {
+                d.Date_reported = new Date(d.Date_reported);
+                d.Cumulative_cases = +d.Cumulative_cases;
+                d.Cumulative_deaths = +d.Cumulative_deaths;
+            });
+
+            // Filter data to only include the most recent date (17-11-2024)
+            const mostRecentDate = new Date("2024-11-17");
+            const recentData = data.filter(d => d.Date_reported.getTime() === mostRecentDate.getTime());
+
+            // Standardize country names to match GeoJSON data
+            recentData.forEach(d => {
+                if (d.Country === "Russian Federation") d.Country = "Russia";
+                if (d.Country === "United States of America") d.Country = "USA";
+                if (d.Country === "Iran (Islamic Republic of)") d.Country = "Iran";
+                if (d.Country === "Venezuela (Bolivarian Republic of)") d.Country = "Venezuela";
+                if (d.Country === "Congo") d.Country = "Republic of the Congo";
+                if (d.Country === "Syrian Arab Republic") d.Country = "Syria";
+                if (d.Country === "United Kingdom of Great Britain and Northern Ireland") d.Country = "England";
+                if (d.Country === "Bolivia (Plurinational State of)") d.Country = "Bolivia";
+                if (d.Country === "Czechia") d.Country = "Czech Republic";
+                if (d.Country === "Serbia") d.Country = "Republic of Serbia";
+                if (d.Country === "Viet Nam") d.Country = "Vietnam";
+                if (d.Country === "Republic of Korea") d.Country = "South Korea";
+                if (d.Country === "Democratic People's Republic of Korea") d.Country = "North Korea";
+                if (d.Country === "Republic of Moldova") d.Country = "Moldova";
+                if (d.Country === "Lao People's Democratic Republic") d.Country = "Laos";
+                if (d.Country === "TÃ¼rkiye") d.Country = "Turkey";
+            });
+
+            // Initialize bar chart
+            function createBarChart() {
+                const visualization = document.getElementById("visualization");
+                visualization.innerHTML = '';
+
+                // Group data by week
+                const weekData = d3.groups(data, d => d3.timeWeek.floor(d.Date_reported));
+
+                let slider = document.createElement("input");
+                slider.type = "range";
+                slider.id = "dateSlider";
+                slider.min = 0;
+                slider.max = weekData.length - 2;
+                slider.value = 0;
+
+                let dateDisplay = document.createElement("p");
+                dateDisplay.id = "dateDisplay";
+                dateDisplay.innerHTML = `Week of ${d3.timeFormat("%B %d, %Y")(weekData[0][0])}`;
+
+                visualization.appendChild(slider);
+                visualization.appendChild(dateDisplay);
+
+                const chartContainer = document.createElement("div");
+                chartContainer.classList.add("chart-container");
+                chartContainer.id = "barChart";
+                visualization.appendChild(chartContainer);
+
+                let playInterval;
+
+                const margin = { top: 50, right: 20, bottom: 50, left: 100 };
+                const width = 800 - margin.left - margin.right;
+                const height = 600 - margin.top - margin.bottom;
+
+                const svg = d3.select("#barChart")
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                const tooltip = document.createElement('div');
+                tooltip.classList.add('tooltip');
+                document.body.appendChild(tooltip);
+
+                function updateChart(weekIndex) {
+                    const selectedWeekData = weekData[weekIndex][1];
+
+                    const countryCasesMap = d3.rollup(selectedWeekData,
+                        v => d3.max(v, d => d.Cumulative_cases),
+                        d => d.Country
+                    );
+
+                    const sortedData = Array.from(countryCasesMap, ([country, cumulativeCases]) => ({
+                        country, cumulativeCases
+                    })).sort((a, b) => b.cumulativeCases - a.cumulativeCases);
+
+                    const top10Countries = sortedData.slice(0, 10);
+
+                    const y = d3.scaleBand()
+                        .domain(top10Countries.map(d => d.country))
+                        .range([0, height])
+                        .padding(0.2);
+
+                    const x = d3.scaleLinear()
+                        .domain([0, d3.max(top10Countries, d => d.cumulativeCases)]).nice()
+                        .range([0, width]);
+
+                    svg.selectAll("g").remove();
+                    svg.selectAll("rect").remove();
+                    svg.selectAll("text.value-label").remove();
+
+                    svg.append("g")
+                        .attr("transform", `translate(0,0)`)
+                        .call(d3.axisLeft(y))
+                        .selectAll("text")
+                        .style("text-anchor", "end");
+
+                    svg.append("g")
+                        .attr("transform", `translate(0,${height})`)
+                        .call(d3.axisBottom(x).ticks(5));
+
+                    svg.selectAll(".bar")
+                        .data(top10Countries)
+                        .enter()
+                        .append("rect")
+                        .attr("class", "bar")
+                        .attr("y", d => y(d.country))
+                        .attr("height", y.bandwidth())
+                        .attr("x", 0)
+                        .attr("width", d => x(d.cumulativeCases))
+                        .attr("fill", (d, i) => d3.schemeCategory10[i % 10])
+                        .on("mouseover", function (event, d) {
+                            d3.select(this).attr("fill", "#ff4500");
+                            tooltip.style.opacity = 1;
+                            tooltip.innerHTML = `<strong>${d.country}</strong><br>
+                                                 Cumulative Cases: ${d.cumulativeCases.toLocaleString()}`;
+                        })
+                        .on("mousemove", function (event) {
+                            tooltip.style.left = (event.pageX + 10) + "px";
+                            tooltip.style.top = (event.pageY + 10) + "px";
+                        })
+                        .on("mouseout", function () {
+                            d3.select(this).attr("fill", (d, i) => d3.schemeCategory10[i % 10]);
+                            tooltip.style.opacity = 0;
+                        });
+
+                    svg.selectAll(".value-label")
+                        .data(top10Countries)
+                        .enter()
+                        .append("text")
+                        .attr("class", "value-label")
+                        .attr("x", d => x(d.cumulativeCases) + 5)
+                        .attr("y", d => y(d.country) + y.bandwidth() / 2)
+                        .attr("dy", ".35em")
+                        .text(d => d.cumulativeCases.toLocaleString())
+                        .style("fill", "#333");
+
+                    // Add chart title and axis labels
+                    svg.append("text")
+                        .attr("x", width / 2)
+                        .attr("y", -20)
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "20px")
+                        .style("font-weight", "bold");
+
+                    svg.append("text")
+                        .attr("x", width / 2)
+                        .attr("y", height + margin.bottom - 10)
+                        .attr("text-anchor", "middle")
+                        .text("Total Cases");
+
+                    svg.append("text")
+                        .attr("transform", "rotate(-90)")
+                        .attr("x", -height / 2)
+                        .attr("y", -margin.left + 15)
+                        .attr("text-anchor", "middle")
+                        .text("Country");
+                }
+
+                updateChart(0);
+
+                slider.addEventListener("input", function () {
+                    const weekIndex = +slider.value;
+                    dateDisplay.innerHTML = `Week of ${d3.timeFormat("%B %d, %Y")(weekData[weekIndex][0])}`;
+                    updateChart(weekIndex);
+                });
+
+                playButton.addEventListener("click", function () {
+                    if (playButton.innerText === "Play") {
+                        playButton.innerText = "Pause";
+                        slider.disabled = true;
+                        playInterval = setInterval(() => {
+                            if (+slider.value < +slider.max) {
+                                slider.value = +slider.value + 1;
+                                slider.dispatchEvent(new Event("input"));
+                            } else {
+                                clearInterval(playInterval);
+                                playButton.innerText = "Play";
+                                slider.disabled = false;
+                            }
+                        }, 500);
+                    } else {
+                        clearInterval(playInterval);
+                        playButton.innerText = "Play";
+                        slider.disabled = false;
+                    }
+                });
+            }
+
+            // Initialize the bar chart
+            createBarChart();
+
+        }).catch(error => console.error("Error loading CSV data:", error));
+    </script>
+</body>
+</html>

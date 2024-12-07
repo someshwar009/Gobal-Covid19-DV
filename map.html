@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COVID-19 Dashboard with Multiple Visualizations</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v1.min.js"></script>
+    <script src="https://unpkg.com/d3-geo-projection"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #19538d;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            text-align: center;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            width: 98%;
+            height: 98vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .world-map-container {
+            width: 100%;
+            height: 50%; /* Reduced height for better fit */
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chart-container {
+            width: 40%;
+            height: 100%;
+            position: relative;
+            margin-right: 20px;
+        }
+
+        .line-chart-container {
+            width: 45%;
+            height: 90%; /* Adjusted height to fit properly */
+            background-color: #f9f9f9;
+            padding: 5px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-area {
+            width: 100%;
+            height: 50%; /* Increased height to allow for better fit */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align chart to the top */
+            gap: 20px; /* Add space between the charts */
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.85);
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="visualization" class="world-map-container"></div>
+        <div class="chart-area">
+            <div id="lineChart" class="line-chart-container"></div>
+            <div id="deathsChart" class="line-chart-container"></div>
+        </div>
+    </div>
+
+    <script>
+        const visualization = document.getElementById("visualization");
+        const lineChartContainer = d3.select("#lineChart");
+        const deathsChartContainer = d3.select("#deathsChart");
+
+        // Load CSV data for both visualizations
+        d3.csv("/data/who_covid_data_with_coordinates.csv").then(data => {
+            // Parse dates and convert numeric values
+            data.forEach(d => {
+                d.Date_reported = new Date(d.Date_reported);
+                d.Cumulative_cases = +d.Cumulative_cases;
+                d.Cumulative_deaths = +d.Cumulative_deaths;
+            });
+
+            // Filter data to only include the most recent date (17-11-2024)
+            const mostRecentDate = new Date("2024-11-17");
+            const recentData = data.filter(d => d.Date_reported.getTime() === mostRecentDate.getTime());
+
+            // Standardize country names to match GeoJSON data
+            recentData.forEach(d => {
+                if (d.Country === "Russian Federation") d.Country = "Russia";
+                if (d.Country === "United States of America") d.Country = "USA";
+                if (d.Country === "Iran (Islamic Republic of)") d.Country = "Iran";
+                if (d.Country === "Venezuela (Bolivarian Republic of)") d.Country = "Venezuela";
+                if (d.Country === "Congo") d.Country = "Republic of the Congo";
+                if (d.Country === "Syrian Arab Republic") d.Country = "Syria";
+                if (d.Country === "United Kingdom of Great Britain and Northern Ireland") d.Country = "England";
+                if (d.Country === "Bolivia (Plurinational State of)") d.Country = "Bolivia";
+                if (d.Country === "Czechia") d.Country = "Czech Republic";
+                if (d.Country === "Serbia") d.Country = "Republic of Serbia";
+                if (d.Country === "Viet Nam") d.Country = "Vietnam";
+                if (d.Country === "Republic of Korea") d.Country = "South Korea";
+                if (d.Country === "Democratic People's Republic of Korea") d.Country = "North Korea";
+                if (d.Country === "Republic of Moldova") d.Country = "Moldova";
+                if (d.Country === "Lao People's Democratic Republic") d.Country = "Laos";
+                if (d.Country === "TÃ¼rkiye") d.Country = "Turkey";
+            });
+
+            // Initialize world map visualization
+            function createWorldMap() {
+                visualization.innerHTML = '';
+                const width = visualization.clientWidth;
+                const height = visualization.clientHeight;
+
+                const svg = d3.select("#visualization")
+                    .append("svg")
+                    .attr("width", width)
+                    .attr("height", height)
+                    .call(d3.zoom()
+                        .scaleExtent([1, 8])
+                        .translateExtent([[0, 0], [width, height]])
+                        .on("zoom", zoomed));
+
+                const g = svg.append("g");
+
+                const projection = d3.geoMercator()
+                    .scale(100)
+                    .translate([width / 2, height / 1.8]);
+
+                const path = d3.geoPath().projection(projection);
+
+                const tooltip = document.createElement('div');
+                tooltip.classList.add('tooltip');
+                document.body.appendChild(tooltip);
+
+                // Load GeoJSON data for the world map
+                d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson").then(worldData => {
+                    // Create a color scale
+                    const maxCases = d3.max(recentData, d => d.Cumulative_cases);
+                    const colorScale = d3.scaleSequential(d3.interpolateOranges)
+                        .domain([0, maxCases]);
+
+                    g.append("g")
+                        .selectAll("path")
+                        .data(worldData.features)
+                        .enter()
+                        .append("path")
+                        .attr("d", path)
+                        .attr("fill", d => {
+                            const countryData = recentData.find(country => country.Country === d.properties.name);
+                            return countryData ? colorScale(countryData.Cumulative_cases) : "#d3d3d3";
+                        })
+                        .attr("stroke", "#424242")
+                        .attr("stroke-width", 1)
+                        .on("click", function (event, d) {
+                            const countryName = d.properties.name;
+                            const countryData = data.filter(entry => {
+                                const standardizedName = entry.Country;
+                                if (standardizedName === "Russian Federation") entry.Country = "Russia";
+                                if (standardizedName === "United States of America") entry.Country = "USA";
+                                if (standardizedName === "Iran (Islamic Republic of)") entry.Country = "Iran";
+                                if (standardizedName === "Venezuela (Bolivarian Republic of)") entry.Country = "Venezuela";
+                                if (standardizedName === "Congo") entry.Country = "Republic of the Congo";
+                                if (standardizedName === "Syrian Arab Republic") entry.Country = "Syria";
+                                if (standardizedName === "United Kingdom of Great Britain and Northern Ireland") entry.Country = "England";
+                                if (standardizedName === "Bolivia (Plurinational State of)") entry.Country = "Bolivia";
+                                if (standardizedName === "Czechia") entry.Country = "Czech Republic";
+                                if (standardizedName === "Serbia") entry.Country = "Republic of Serbia";
+                                if (standardizedName === "Viet Nam") entry.Country = "Vietnam";
+                                if (standardizedName === "Republic of Korea") entry.Country = "South Korea";
+                                if (standardizedName === "Democratic People's Republic of Korea") entry.Country = "North Korea";
+                                if (standardizedName === "Republic of Moldova") entry.Country = "Moldova";
+                                if (standardizedName === "Lao People's Democratic Republic") entry.Country = "Laos";
+                                if (standardizedName === "TÃ¼rkiye") entry.Country = "Turkey";
+                                return entry.Country === countryName;
+                            });
+                            if (countryData.length > 0) {
+                                drawLineChart(countryData, countryName);
+                                drawDeathsChart(countryData, countryName);
+                            }
+                        })
+                        .on("mouseover", function (event, d) {
+                            d3.select(this).attr("fill", "#ff4500");
+                            const countryData = recentData.find(country => country.Country === d.properties.name);
+                            if (countryData) {
+                                tooltip.style.opacity = 1;
+                                tooltip.innerHTML = `<strong>${countryData.Country}</strong><br>
+                                                    Cumulative Cases: ${countryData.Cumulative_cases.toLocaleString()}<br>
+                                                    Cumulative Deaths: ${countryData.Cumulative_deaths.toLocaleString()}`;
+                            } else {
+                                tooltip.style.opacity = 1;
+                                tooltip.innerHTML = `<strong>${d.properties.name}</strong><br>No Data Available`;
+                            }
+                        })
+                        .on("mousemove", function (event) {
+                            tooltip.style.left = (event.pageX + 10) + "px";
+                            tooltip.style.top = (event.pageY + 10) + "px";
+                        })
+                        .on("mouseout", function () {
+                            d3.select(this).attr("fill", d => {
+                                const countryData = recentData.find(country => country.Country === d.properties.name);
+                                return countryData ? colorScale(countryData.Cumulative_cases) : "#d3d3d3";
+                            });
+                            tooltip.style.opacity = 0;
+                        });
+                }).catch(error => console.error("Error loading GeoJSON data:", error));
+
+                function zoomed(event) {
+                    g.attr("transform", event.transform); // Apply zoom and pan
+                }
+            }
+
+            function drawLineChart(countryData, countryName) {
+                const validCountryData = countryData.filter(d => d.Cumulative_cases > 0);
+                if (validCountryData.length === 0) {
+                    lineChartContainer.style("display", "none");
+                    return;
+                }
+
+                lineChartContainer.style("display", "block");
+                lineChartContainer.html("");
+
+                const margin = { top: 25, right: 35, bottom: 35, left: 55 };
+                const width = lineChartContainer.node().clientWidth - margin.left - margin.right;
+                const height = lineChartContainer.node().clientHeight - margin.top - margin.bottom;
+
+                const svg = lineChartContainer.append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                const x = d3.scaleTime()
+                    .domain(d3.extent(validCountryData, d => d.Date_reported))
+                    .range([0, width]);
+
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(validCountryData, d => d.Cumulative_cases)])
+                    .nice()
+                    .range([height, 0]);
+
+                svg.append("g")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x).ticks(5));
+
+                svg.append("g")
+                    .call(d3.axisLeft(y).ticks(5));
+
+                svg.append("path")
+                    .datum(validCountryData)
+                    .attr("fill", "none")
+                    .attr("stroke", "#007bff")
+                    .attr("stroke-width", 1.5)
+                    .attr("d", d3.line()
+                        .x(d => x(d.Date_reported))
+                        .y(d => y(d.Cumulative_cases))
+                    );
+
+                svg.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", -10)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "14px")
+                    .text(`Cumulative Cases for ${countryName}`);
+            }
+
+            function drawDeathsChart(countryData, countryName) {
+                const validCountryData = countryData.filter(d => d.Cumulative_deaths > 0);
+                if (validCountryData.length === 0) {
+                    deathsChartContainer.style("display", "none");
+                    return;
+                }
+
+                deathsChartContainer.style("display", "block");
+                deathsChartContainer.html("");
+
+                const margin = { top: 25, right: 35, bottom: 35, left: 55 };
+                const width = deathsChartContainer.node().clientWidth - margin.left - margin.right;
+                const height = deathsChartContainer.node().clientHeight - margin.top - margin.bottom;
+
+                const svg = deathsChartContainer.append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                const x = d3.scaleTime()
+                    .domain(d3.extent(validCountryData, d => d.Date_reported))
+                    .range([0, width]);
+
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(validCountryData, d => d.Cumulative_deaths)])
+                    .nice()
+                    .range([height, 0]);
+
+                svg.append("g")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x).ticks(5));
+
+                svg.append("g")
+                    .call(d3.axisLeft(y).ticks(5));
+
+                svg.append("path")
+                    .datum(validCountryData)
+                    .attr("fill", "none")
+                    .attr("stroke", "#ff0000")
+                    .attr("stroke-width", 1.5)
+                    .attr("d", d3.line()
+                        .x(d => x(d.Date_reported))
+                        .y(d => y(d.Cumulative_deaths))
+                    );
+
+                svg.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", -10)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "14px")
+                    .text(`Cumulative Deaths for ${countryName}`);
+            }
+
+            // Initialize with the world map visualization
+            createWorldMap();
+        }).catch(error => console.error("Error loading CSV data:", error));
+    </script>
+</body>
+</html>

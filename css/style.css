@@ -1,0 +1,520 @@
+/* using custom fonts  */
+@import url("./import-fonts.css");
+
+/* using css reset - to reset default css settings */
+@import url("./css_reset.css");
+
+/* universal element selector - box_sizing: border-box (to avoid overadding of fixed dimensions of the elements)*/
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  /* border: 1px solid black !important; */
+}
+
+body {
+  position: relative;
+  background-color: rgb(18, 21, 24);
+  /* Use the custom font as the first choice for text */
+  font-family: "CustomFont", "BlinkMacSystemFont", "Helvetica", "serif";
+  /* To avoid scrolling of page, when elemnts overflow */
+  overflow: hidden;
+}
+
+.c1 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+}
+
+.heading_container {
+  display: flex;
+  position: sticky;
+  user-select: none;
+}
+
+.heading_container>.logo {
+  max-width: 100%;
+  width: 10rem;
+}
+
+h1.main_heading {
+  font-size: 3rem;
+  text-decoration: none;
+  margin: 20px 0 20px;
+  color: #333333;
+  /* -webkit-text-stroke: 1px #282828; */
+  text-shadow: -1px 1px 0 #41ba45, 1px 1px 0 #c63d2b, 1px -1px 0 #42afac,
+    -1px -1px 0 #c6c132;
+}
+
+svg {
+  display: block;
+  margin: 0 auto;
+  margin-bottom: 2px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: visible;
+  cursor: grab;
+  filter: drop-shadow(0px 54px 55px rgba(0, 0, 0, 0.25)) drop-shadow(0px -12px 30px rgba(0, 0, 0, 0.12)) drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.12)) drop-shadow(0px 12px 13px rgba(0, 0, 0, 0.17)) drop-shadow(0px -3px 5px rgba(0, 0, 0, 0.09));
+}
+
+path {
+  stroke-width: 0.2px;
+  stroke: #000000;
+
+  /* Below fixes unnecesary display of path box border - {is displayed, when the user clicks on any of the state}*/
+  border: none;
+  outline: none;
+
+  /* transition: stroke 0.3s ease; Smooth transition effect */
+
+  /* Animation for glowing effect */
+  /* animation: glow 3s infinite alternate; */
+}
+
+/* Animation for ptaht boredr glow */
+/* @keyframes glow {
+  from {
+    stroke: rgb(5, 91, 249);
+  }
+
+  to {
+    stroke: rgb(255, 10, 5);
+  }
+} */
+
+.c1 svg path:hover {
+  opacity: .5;
+  stroke-width: 2px;
+  stroke: rgba(0, 0, 0, 0.966);
+  cursor: pointer !important;
+}
+
+/* Make text within the SVG unselectable and set the color to red */
+svg text {
+  font-size: 10px;
+  font-weight: bold;
+  user-select: none;
+  z-index: -1000;
+}
+
+svg text:hover {
+  cursor: pointer;
+}
+
+.button-container {
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  gap: 23px;
+  width: 100%;
+}
+
+.user-controls {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  width: 300px;
+  /* border-radius: 10px; */
+  transform: scale(0.9) translate(-4%, -4%);
+  overflow: hidden;
+  user-select: none;
+}
+
+.user-controls .heading {
+  margin-bottom: 0;
+  color: #dbddde;
+  background: linear-gradient(#24292d, #24292d);
+  background-clip: content-box;
+  /* Ensure that this line is correctly written */
+  -webkit-background-clip: content-box;
+  /* This is for older WebKit browsers */
+  padding: 10px 10px 0px;
+  line-height: 35px;
+}
+
+.user-controls .c2 {
+  padding: 10px 10px;
+  /* background-color: #1b1f22; */
+  overflow-y: hidden;
+}
+
+.user-controls .container .main_categories {
+  width: 100%;
+}
+
+.user-controls .container .sub_categories {
+  width: 100%;
+}
+
+.user-controls .container>div:first-child {
+  margin: 0px 0 10px;
+}
+
+.main_categories .btn-outline,
+.sub_categories .btn-outline {
+  color: #f5f6f7;
+  background-color: #1b1f22;
+  border: 1px solid #797b7d !important;
+}
+
+.main_categories .btn-outline::before {
+  content: "";
+  display: inline-block;
+  outline: none;
+  border: none;
+}
+
+.main_categories .btn-outline:first-child::before {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background-color: #e40b0b;
+}
+
+.main_categories .btn-outline:last-child::before {
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 8px 13px 8px;
+  border-color: transparent transparent #ffdd00 transparent;
+}
+
+.main_categories .btn-outline:hover,
+.sub_categories .btn-outline:hover {
+  background-color: #505858b6;
+}
+
+.btn-outline:focus,
+.form-control:focus {
+  outline: none;
+  /* Remove the default blue outline */
+  box-shadow: none;
+  /* Remove any box shadow (if applied by Bootstrap) */
+  background-color: #f5f6f7 !important;
+  color: #1b1f22;
+}
+
+.input-group .text-field {
+  background-color: #24292d;
+  color: #f5f6f7;
+  font-weight: bold;
+}
+
+.input-group .text-field:focus {
+  background-color: #f5f6f7;
+  color: #24292d;
+  color: #24292d;
+  border: 1px solid #24292d;
+}
+
+.input-group .btn {
+  position: relative;
+  background-color: #24292d;
+  color: #f5f6f7;
+  z-index: 2;
+}
+
+.btn-search:hover {
+  background-color: #505858b6;
+  color: #f5f6f7;
+}
+
+.btn-search:focus {
+  background-color: #f5f6f7;
+  color: #080808fd;
+}
+
+.btn-all {
+  color: #f5f6f7;
+  background-color: #1b1f22;
+  border: 1px solid #797b7d !important;
+  width: 280px;
+  margin-bottom: 10px;
+}
+
+.btn-all:hover {
+  background-color: #505858b6;
+  color: #f5f6f7;
+}
+
+.btn-all:focus {
+  background-color: #f5f6f7;
+  color: #080808fd;
+}
+
+.btn-secondary {
+  color: #f5f6f7;
+  background-color: #1b1f22;
+  border: 1px solid #797b7d !important;
+  width: 200px;
+  margin-bottom: 10px;
+}
+
+.btn-secondary:hover {
+  background-color: #505858b6;
+  color: #f5f6f7;
+}
+
+.btn-secondary:focus {
+  background-color: #f5f6f7;
+  color: #080808fd;
+}
+
+/* Add styles for the slider container */
+.slider-container {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40vw;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 5px 15px 8px;
+
+  box-shadow: rgba(0, 0, 0, 0.12) 0px 1px 3px, rgba(0, 0, 0, 0.24) 0px 1px 2px;
+
+  /* From https://css.glass */
+  background: rgba(255, 255, 255, 0.13);
+  border-radius: 16px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(2.1px);
+  -webkit-backdrop-filter: blur(2.1px);
+  border: 1px solid rgba(255, 255, 255, 0.94);
+  /* From https://css.glass */
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 16px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(9.9px);
+  border: 2px solid rgba(57, 57, 57, 0.94);
+}
+
+/* Style for the slider label */
+.slider-label {
+  color: #f5f6f7;
+  font-size: 18px;
+}
+
+/* Style for the slider input */
+#year-slider {
+  width: 36.8vw;
+  margin-top: 10px;
+}
+
+.year-labels {
+  display: flex;
+  justify-content: space-between;
+  color: black;
+  font-weight: bold;
+}
+
+.year-labels span {
+  user-select: none;
+}
+
+.year-labels span.all-label.active {
+  color: #fc1212;
+  font-weight: bold;
+}
+
+.year-labels span.active {
+  color: #fc1212;
+  font-weight: bold;
+}
+
+
+/* Defining the colors for different years */
+#map path {
+  transition: fill 0.3s ease;
+}
+
+/* Year-specific colors */
+#map path.all {
+  fill: #ffffff;
+}
+
+#map path.year-2014 {
+  fill: #a4f1fb;
+}
+
+#map path.year-2015 {
+  fill: #c2a3fb;
+}
+
+#map path.year-2016 {
+  fill: #f09329;
+}
+
+#map path.year-2017 {
+  fill: #bce127;
+}
+
+#map path.year-2018 {
+  fill: #c89666;
+}
+
+#map path.year-2019 {
+  fill: #8076a3;
+}
+
+#map path.year-2020 {
+  fill: #39a0ca;
+}
+
+#map path.year-2021 {
+  fill: #99c433e5;
+}
+
+#map path.year-2022 {
+  fill: #503dfaea;
+}
+
+.reset-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 8px;
+  display: inline-block;
+  outline: 0;
+  border: 0;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  will-change: box-shadow, transform;
+  background: radial-gradient(100% 100% at 100% 0%, #f40000 0%, #f90000 100%);
+  box-shadow: 0px 2px 4px rgb(45 35 66 / 40%), 0px 7px 13px -3px rgb(45 35 66 / 30%), inset 0px -3px 0px #1f1f81;
+  height: 48px;
+  padding: 0 32px;
+  font-size: 18px;
+  border-radius: 6px;
+  color: #ffffff;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.reset-btn:hover {
+  box-shadow: 0px 4px 8px rgb(45 35 66 / 40%), 0px 7px 13px -3px rgb(45 35 66 / 30%), inset 0px -3px 0px #1f1f81;
+  transform: translateY(-2px);
+}
+
+.reset-btn:active {
+  box-shadow: inset 0px 1px 3px #d6d6e7;
+  transform: translateY(2px);
+}
+
+/* User Input Suggestions */
+#suggestions {
+  margin-top: 5px;
+  width: 100%;
+  outline: none;
+  border: none;
+  background: #24292d;
+  overflow-y: scroll;
+  scrollbar-width: thin;
+}
+
+#suggestions>p {
+  margin: 0;
+  padding: 5px 10px 0 10px;
+  color: #f5f6f7;
+  font-weight: bold;
+  line-height: 25px;
+}
+
+#suggestions ul {
+  margin-top: 5px !important;
+  padding: 0;
+  margin: 0;
+  list-style-type: none;
+  list-style-position: outside;
+  text-align: left;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: bold;
+  max-height: 50vh;
+}
+
+#suggestions ul li {
+  padding: 0 10px;
+  color: #f5f6f7;
+  line-height: 25px;
+  cursor: pointer;
+}
+
+#suggestions ul li:hover {
+  color: #f5f6f7;
+  background: #505858b6;
+}
+
+#suggestions::-webkit-scrollbar {
+  width: 5px;
+  /* width of the entire scrollbar */
+}
+
+#suggestions::-webkit-scrollbar-track {
+  background: transparent;
+  /* color of the tracking area */
+}
+
+#suggestions::-webkit-scrollbar-thumb {
+  /* color of the scroll thumb */
+  border-radius: 0px;
+  /* roundness of the scroll thumb */
+  border: 3px solid rgba(245, 245, 243, 0.3);
+  /* creates padding around scroll thumb */
+}
+
+/* Styles for Markers */
+/* Add a CSS class for red circles */
+.victimCircle {
+  fill: #e40b0b !important;
+  stroke: darkred !important;
+  stroke-width: 1 !important;
+}
+
+/* Add a CSS class for yellow triangles */
+.victimTriangle {
+  fill: #ffdd00 !important;
+  stroke: darkgoldenrod !important;
+  stroke-width: 1 !important;
+}
+
+.victimCircle:hover,
+.victimTriangle:hover {
+  cursor: pointer;
+  opacity: .5 !important;
+}
+
+.tooltip {
+  position: absolute;
+  padding: 8px;
+  font-size: 12px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#summary-container {
+  margin-left: 10px;
+  padding-left: 10px;
+  line-height: auto;
+  border-left: 3px solid black;
+  box-shadow: rgba(50, 50, 93, 0.25) 0px 2px 5px -1px, rgba(0, 0, 0, 0.3) 0px 1px 3px -1px;
+}
+
+#summary-container p:first-child {
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 2px;
+  text-decoration: underline
+}
+
+#summary-container p:first-child+p {
+  margin-bottom: 2px;
+}
+
+#summary-container p:last-child {
+  margin-bottom: 0;
+}

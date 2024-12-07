@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive COVID-19 Map/Globe with Leaderboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v1.min.js"></script>
+    <script src="https://d3js.org/d3-geo-projection.v4.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #main-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+        #controls {
+            width: 300px;
+            margin-right: 20px;
+        }
+        #map-container {
+            width: calc(100% - 320px);
+            height: 900px;
+            background-color: #20384a;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 255, 0, 0.8);
+            color: #000000;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 12px;
+            display: none;
+            pointer-events: none;
+        }
+        #leaderboard {
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        #leaderboard th, #leaderboard td {
+            border: 1px solid #00ff00;
+            padding: 5px;
+            text-align: left;
+        }
+        .color-scale-container {
+            margin-top: 20px;
+        }
+        .color-scale {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .color-bar {
+            height: 20px;
+            width: 600px;
+            background: linear-gradient(to right, #001f3f, #d8c3a5, #ff4136);
+        }
+        .color-labels {
+            display: flex;
+            justify-content: space-between;
+            width: 600px;
+        }
+        #controls-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+        #date-slider {
+            width: 600px;
+        }
+        #play-pause, #toggle-data, #toggle-view, #zoom-in, #zoom-out {
+            padding: 5px 10px;
+            font-size: 16px;
+            margin-left: 10px;
+            background-color: #333333;
+            color: #00ff00;
+            border: none;
+            cursor: pointer;
+        }
+        #play-pause:hover, #toggle-data:hover, #toggle-view:hover, #zoom-in:hover, #zoom-out:hover {
+            background-color: #00ff00;
+            color: #000000;
+        }
+    </style>
+</head>
+<body>
+    <h1>COVID-19 Global interactive Choropleth Map</h1>
+    <sub>COVID Cases (2020-2024)</sub>
+    <div id="main-container">
+        <div id="controls">
+            <h2>Leaderboard</h2>
+            <table id="leaderboard">
+                <thead>
+                    <tr><th>Country</th><th id="leaderboard-header">Cases</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="map-container"></div>
+    </div>
+    <div class="color-scale-container">
+        <div class="color-scale">
+            <div class="color-bar"></div>
+            <div class="color-labels">
+                <span>0</span>
+                <span>250k</span>
+                <span>500k</span>
+                <span>750k</span>
+                <span>1M+</span>
+                <span>1B+</span>
+            </div>
+        </div>
+    </div>
+    <div id="controls-container">
+        <input type="range" id="date-slider" min="0" max="100" value="100">
+        <button id="play-pause">Play</button>
+        <button id="toggle-data">Show Deaths</button>
+        <button id="toggle-view">Globe View</button>
+        <button id="zoom-in">Zoom In</button>
+        <button id="zoom-out">Zoom Out</button>
+    </div>
+    <script>
+        const width = document.getElementById('map-container').offsetWidth;
+        const height = 900;
+        const svg = d3.select("#map-container")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        let projection = d3.geoMercator()
+            .scale(200)
+            .translate([width / 2, height / 1.5]);
+
+        let path = d3.geoPath().projection(projection);
+
+        const tooltip = d3.select("body").append("div")
+            .attr("class", "tooltip");
+
+        let covidData, dates, worldData, isPlaying = false, playInterval, showDeaths = false, isGlobeView = false;
+
+        const slider = document.getElementById("date-slider");
+        const playPauseButton = document.getElementById("play-pause");
+        const toggleDataButton = document.getElementById("toggle-data");
+        const toggleViewButton = document.getElementById("toggle-view");
+        const zoomInButton = document.getElementById("zoom-in");
+        const zoomOutButton = document.getElementById("zoom-out");
+
+        function standardizeCountryName(name) {
+            const nameMap = {
+                "United States of America": "USA",
+                "Viet Nam": "Vietnam",
+                "Côte d'Ivoire": "Ivory Coast",
+                "Democratic Republic of the Congo": "Congo",
+                "United Republic of Tanzania": "Tanzania",
+                "Russian Federation": "Russia",
+                "Iran (Islamic Republic of)": "Iran",
+                "Republic of Korea": "South Korea",
+                "Venezuela (Bolivarian Republic of)": "Venezuela",
+                "Bolivia (Plurinational State of)": "Bolivia",
+                "United Kingdom": "United Kingdom",
+                "Lao People's Democratic Republic": "Laos",
+                "Syrian Arab Republic": "Syria",
+                "Republic of Moldova": "Moldova",
+                "Brunei Darussalam": "Brunei",
+                "Democratic People's Republic of Korea": "North Korea",
+                "The United Kingdom": "United Kingdom"
+            };
+            return nameMap[name] || name;
+        }
+
+        Promise.all([
+            d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson"),
+            d3.csv("/data/who_covid_data_with_coordinates.csv")
+        ]).then(([wData, rawCovidData]) => {
+            worldData = wData;
+            covidData = rawCovidData.map(d => ({
+                ...d,
+                Cumulative_cases: +d.Cumulative_cases,
+                Cumulative_deaths: +d.Cumulative_deaths,
+                Date_reported: d.Date_reported
+            }));
+            dates = [...new Set(covidData.map(d => d.Date_reported))].sort();
+            slider.max = dates.length - 1;
+
+            const colorScale = d3.scaleSequential()
+                .interpolator(d3.interpolateRgbBasis(["#001f3f", "#d8c3a5", "#ff4136"]))
+                .domain([0, d3.max(covidData, d => d.Cumulative_cases)]);
+
+            updateMap(dates[dates.length - 1], colorScale);
+
+            slider.addEventListener("input", function() {
+                const selectedDate = dates[this.value];
+                updateMap(selectedDate, colorScale);
+            });
+
+            playPauseButton.addEventListener("click", () => togglePlay(colorScale));
+            toggleDataButton.addEventListener("click", () => toggleDataType(colorScale));
+            toggleViewButton.addEventListener("click", () => toggleView(colorScale));
+            zoomInButton.addEventListener("click", () => zoom(1.2));
+            zoomOutButton.addEventListener("click", () => zoom(0.8));
+        });
+
+        function updateMap(date, colorScale) {
+            const filteredData = covidData.filter(d => d.Date_reported === date);
+            const dataType = showDeaths ? 'Cumulative_deaths' : 'Cumulative_cases';
+            
+            const maxValue = d3.max(filteredData, d => +d[dataType]);
+            colorScale.domain([0, maxValue]);
+            
+            const covidMap = new Map(filteredData.map(d => [standardizeCountryName(d.Country), { value: +d[dataType], code: d.Country_code }]));
+
+            svg.selectAll("path")
+                .data(worldData.features)
+                .join("path")
+                .attr("d", path)
+                .attr("fill", d => {
+                    const data = covidMap.get(standardizeCountryName(d.properties.name));
+                    return data ? colorScale(data.value) : "#cccccc";
+                })
+                .attr("stroke", "#ffffff")
+                .attr("stroke-width", 0.5)
+                .on("mouseover", (event, d) => {
+                    const data = covidMap.get(standardizeCountryName(d.properties.name));
+                    tooltip.style("display", "block")
+                        .style("left", `${event.pageX + 10}px`)
+                        .style("top", `${event.pageY + 10}px`)
+                        .html(`<strong>${d.properties.name}</strong><br>${showDeaths ? 'Total Deaths' : 'Total Cases'}: ${data ? data.value.toLocaleString() : 'No data'}`);
+                })
+                .on("mouseout", () => tooltip.style("display", "none"));
+
+            updateLeaderboard(filteredData);
+            updateColorScale(colorScale);
+        }
+
+        function updateLeaderboard(data) {
+            const dataType = showDeaths ? 'Cumulative_deaths' : 'Cumulative_cases';
+            const topCountries = data.sort((a, b) => b[dataType] - a[dataType]).slice(0, 10);
+            const tbody = d3.select("#leaderboard tbody");
+            tbody.selectAll("tr").remove();
+            topCountries.forEach(country => {
+                tbody.append("tr")
+                    .html(`<td><img src="https://flagcdn.com/w40/${country.Country_code.toLowerCase()}.png" alt="${country.Country} flag" style="width:20px;height:auto;margin-right:5px;"> ${country.Country}</td><td>${country[dataType].toLocaleString()}</td>`);
+            });
+            document.getElementById("leaderboard-header").textContent = showDeaths ? "Deaths" : "Cases";
+        }
+
+        function togglePlay(colorScale) {
+            isPlaying = !isPlaying;
+            playPauseButton.textContent = isPlaying ? "Pause" : "Play";
+            if (isPlaying) {
+                playInterval = setInterval(() => {
+                    slider.value = (parseInt(slider.value) + 1) % dates.length;
+                    const selectedDate = dates[slider.value];
+                    updateMap(selectedDate, colorScale);
+                }, 50);
+            } else {
+                clearInterval(playInterval);
+            }
+        }
+
+        function toggleDataType(colorScale) {
+            showDeaths = !showDeaths;
+            toggleDataButton.textContent = showDeaths ? "Show Cases" : "Show Deaths";
+            const dataType = showDeaths ? 'Cumulative_deaths' : 'Cumulative_cases';
+            colorScale.domain([0, d3.max(covidData, d => d[dataType])]);
+            updateMap(dates[slider.value], colorScale);
+        }
+
+        function toggleView(colorScale) {
+            isGlobeView = !isGlobeView;
+            toggleViewButton.textContent = isGlobeView ? "Map View" : "Globe View";
+            if (isGlobeView) {
+                projection = d3.geoOrthographic()
+                    .scale(400)
+                    .translate([width / 2, height / 2]);
+
+                svg.append('g')
+                    .selectAll('path')
+                    .data(worldData.features)
+                    .enter().append('path')
+                    .attr('d', path)
+                    .attr('fill', '#0077be')
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', '0.5');
+
+                svg.call(d3.drag().on('drag', (event) => {
+                    const rotate = projection.rotate();
+                    const k = 300 / projection.scale();
+                    projection.rotate([
+                        rotate[0] + event.dx * k,
+                        rotate[1] - event.dy * k
+                    ]);
+                    path = d3.geoPath().projection(projection);
+                    svg.selectAll('path').attr('d', path);
+                }));
+            } else {
+                projection = d3.geoMercator()
+                    .scale(200)
+                    .translate([width / 2, height / 1.5]);
+                svg.selectAll('path').remove();
+                svg.on(".drag", null);
+            }
+            path = d3.geoPath().projection(projection);
+            updateMap(dates[slider.value], colorScale);
+        }
+
+        function zoom(factor) {
+            const currentScale = projection.scale();
+            const newScale = currentScale * factor;
+            projection.scale(newScale);
+            path = d3.geoPath().projection(projection);
+            svg.selectAll("path").attr("d", path);
+        }
+
+        function updateColorScale(colorScale) {
+            const colorBar = d3.select(".color-bar");
+            const gradient = colorBar.selectAll("linearGradient").data([0])
+                .join("linearGradient")
+                .attr("id", "color-scale-gradient")
+                .attr("x1", "0%")
+                .attr("y1", "0%")
+                .attr("x2", "100%")
+                .attr("y2", "0%");
+
+            gradient.selectAll("stop")
+                .data(colorScale.ticks().map((t, i, n) => ({ offset: `${100*i/n.length}%`, color: colorScale(t) })))
+                .join("stop")
+                .attr("offset", d => d.offset)
+                .attr("stop-color", d => d.color);
+
+            colorBar.attr("fill", "url(#color-scale-gradient)");
+
+            const colorLabels = d3.select(".color-labels");
+            const ticks = colorScale.ticks(5);
+            colorLabels.selectAll("span")
+                .data(ticks)
+                .join("span")
+                .text(d => d3.format(".2s")(d));
+        }
+    </script>
+</body>
+</html>

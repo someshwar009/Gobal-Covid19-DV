@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vaccination Data Visualization</title>
+  <!-- Load ECharts library -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.3.3/dist/echarts.min.js"></script>
+  <style>
+    /* Center the chart and make it bigger */
+    #chart-container {
+      width: 80%; /* Adjust width to make it wider */
+      height: 80vh; /* Adjust height to make it larger */
+      margin: 0 auto; /* Center horizontally */
+      display: block;
+    }
+
+    /* Styling for the button */
+    #dashboard-btn {
+      display: block;
+      margin: 10px auto;
+      padding: 10px 20px;
+      font-size: 18px;
+      background-color: #4c82af;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-align: center;
+      width: 200px;
+    }
+    #dashboard-btn:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Button to go to the dashboard (change the href link to your dashboard URL) -->
+  <a href="index.html" id="dashboard-btn" target="_blank">Go to Dashboard</a>
+
+  <!-- Container for the ECharts visualization -->
+  <div id="chart-container"></div>
+
+  <script>
+    // Function to parse CSV data into an array of objects
+    function parseCSV(csvString) {
+      const rows = csvString.trim().split('\n');
+      const headers = rows[0].split(',');
+      const data = rows.slice(1).map(row => {
+        const values = row.split(',');
+        return headers.reduce((obj, header, idx) => {
+          obj[header.trim()] = values[idx].trim();
+          return obj;
+        }, {});
+      });
+      return data;
+    }
+
+    // Function to format large numbers (e.g., 1.23456e+7) to readable numbers
+    function formatNumber(num) {
+      if (num == null) return '';
+      // If the number is in scientific notation, convert to a standard number format
+      return num.toLocaleString('en-US'); // Formats numbers with commas (e.g., 1,234,567)
+    }
+
+    // vaccination CSV file
+    const vaccinationCsv = '/data/vaccination-data.csv'; 
+
+    // Function to fetch and load vaccination data
+    async function loadVaccinationData() {
+      const vaccinationResponse = await fetch(vaccinationCsv);
+      const vaccinationText = await vaccinationResponse.text();
+
+      // Parse the CSV data
+      const vaccinationData = parseCSV(vaccinationText);
+
+      // Prepare the vaccination data for visualization
+      const countries = vaccinationData.map(d => d.COUNTRY); // Country names
+      const totalVaccinations = vaccinationData.map(d => parseFloat(d.TOTAL_VACCINATIONS)); // Use TOTAL_VACCINATIONS directly as float
+      const firstDose = vaccinationData.map(d => parseFloat(d.PERSONS_VACCINATED_1PLUS_DOSE));
+      const boosterDose = vaccinationData.map(d => parseFloat(d.PERSONS_BOOSTER_ADD_DOSE));
+
+      // Initialize the chart with vaccination data
+      initializeVaccinationChart(countries, totalVaccinations, firstDose, boosterDose);
+    }
+
+    // Function to initialize the vaccination chart
+    function initializeVaccinationChart(countries, totalVaccinations, firstDose, boosterDose) {
+      // Create chart options for the vaccination data
+      const vaccinationOption = {
+        title: {
+          text: 'Vaccination Breakdown by Country',
+          left: 'center'
+        },
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          formatter: function (params) {
+            let tooltipHtml = `${params[0].name}<br/>`; // Country name
+            params.forEach(param => {
+              tooltipHtml += `${param.seriesName}: ${formatNumber(param.value)}<br/>`; // Format the numbers for each series
+            });
+            return tooltipHtml;
+          }
+        },
+        legend: {
+          data: ['First Dose', 'Booster Dose', 'Total Vaccinations'],
+          top: 25
+        },
+        xAxis: {
+          type: 'category',
+          data: countries,
+          axisLabel: {
+            interval: 0,
+            rotate: 45, // Rotate labels for better readability
+            formatter: function(value) {
+              // If the country name is too long, wrap it into multiple lines
+              return value.length > 10 ? value.split(' ').join('\n') : value;
+            }
+          },
+          axisTick: {
+            alignWithLabel: true
+          }
+        },
+        yAxis: {
+          type: 'value',
+          name: 'Vaccination Numbers',
+          axisLabel: {
+            formatter: function (value) {
+              return formatNumber(value); // Format the axis labels
+            }
+          }
+        },
+        series: [
+          {
+            name: 'First Dose',
+            type: 'bar',
+            stack: 'total',
+            data: firstDose,
+            label: {
+              show: true,
+              position: 'insideTop',
+              valueAnimation: true
+            }
+          },
+          {
+            name: 'Booster Dose',
+            type: 'bar',
+            stack: 'total',
+            data: boosterDose,
+            label: {
+              show: true,
+              position: 'insideTop',
+              valueAnimation: true
+            }
+          },
+          {
+            name: 'Total Vaccinations',
+            type: 'line',
+            data: totalVaccinations,
+            yAxisIndex: 0,
+            label: {
+              show: true,
+              position: 'top',
+              valueAnimation: true
+            },
+            lineStyle: {
+              width: 3, // Make the line thicker for emphasis
+              color: '#d44c42' // Make the total vaccinations line a distinct color
+            },
+            symbolSize: 8, // Make the symbols on the line more prominent
+          }
+        ],
+        dataZoom: [
+          {
+            type: 'slider',
+            start: 0,
+            end: 5, // Show 40% of the data initially
+            handleSize: '8%',
+            showDetail: false
+          }
+        ],
+        // Listen for legend click event to show/hide series
+        legendselectchanged: function (params) {
+          const selectedLegend = params.selected;
+          const updatedSeries = [];
+
+          // series visibility based on selected legend
+          ['First Dose', 'Booster Dose', 'Total Vaccinations'].forEach((legendName, index) => {
+            if (selectedLegend[legendName]) {
+              updatedSeries.push({
+                name: legendName,
+                type: index === 2 ? 'line' : 'bar',  // Line for "Total Vaccinations" and "Bar" for others
+                stack: index === 0 || index === 1 ? 'total' : undefined,
+                data: index === 0 ? firstDose :
+                      index === 1 ? boosterDose :
+                      totalVaccinations,
+                label: {
+                  show: true,
+                  position: 'insideTop',
+                  valueAnimation: true
+                }
+              });
+            }
+          });
+
+          // Set updated series options to the chart
+          myChart.setOption({ series: updatedSeries });
+        }
+      };
+
+      // Initialize the chart instance
+      const chartContainer = document.getElementById('chart-container');
+      const myChart = echarts.init(chartContainer);
+      myChart.setOption(vaccinationOption);
+    }
+
+    // Call the loadVaccinationData function to fetch and display the data
+    loadVaccinationData();
+  </script>
+
+</body>
+</html>
